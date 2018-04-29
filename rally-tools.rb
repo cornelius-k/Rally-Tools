@@ -3,29 +3,47 @@ require 'http'
 require 'json'
 require 'pry'
 require 'yaml'
+class HTTPRequestError < StandardError
+  attr_reader :msg
+
+  @msg = nil
+  def initialize(resp)
+    @msg = "Bad response from HTTP Request, status code #{resp.code}, body: #{resp.body}"
+  end
+end
 
 class RallyTools
-
-  @rally_api_key = ENV['rally_api_key_UAT']
-  @rally_api = ENV['rally_api_url_UAT']
+  @env_name = "UAT"
+  @rally_api_key = ENV["rally_api_key_#{@env_name}"]
+  @rally_api = ENV["rally_api_url_#{@env_name}"]
 
   def self.make_api_request(path, path_override: nil, payload: nil, one_line: false, suppress: false, patch: false)
     path = path_override || @rally_api + path
     endchar = one_line ? "\t" : "\n"
+
+    # make the request
     print "Making request for path: #{path} #{endchar}" if !suppress
-    if payload
+    if payload && @env_name != "PROD" # saftey -- don't modify Production
       if patch
-        resp = HTTP.headers(:accept => "application/json").auth("Bearer " + @rally_api_key).patch(path, json: payload)
+        resp = HTTP.accept(:json).auth("Bearer " + @rally_api_key).patch(path, json: payload)
+      else
+        resp = HTTP.accept(:json).auth("Bearer " + @rally_api_key).post(path, json: payload)
       end
-      resp = HTTP.accept(:json).auth("Bearer " + @rally_api_key).post(path, json: payload)
     else
       resp = HTTP.accept(:json).auth("Bearer " + @rally_api_key).get(path)
     end
+
+    # check for a successful response
+    if ![200, 201].include?(resp.code)
+      raise HTTPRequestError.new(resp)
+    end
+
+    # parse response body into hash
     body = nil
     begin
       body = JSON[resp.body]
-    rescue JSON::ParserError
-      body = resp.body.to_s
+    rescue
+      JSON::ParserError body = resp.body.to_s
     end
     return body
   end
@@ -127,13 +145,13 @@ class RallyTools
           id: preset['id'],
           code: RallyTools.get_preset_code(preset['id'])
         }
-        puts preset['attributes']['name']
+        puts "Reading from Rally #{@env_name}: \t #{preset['attributes']['name']}"
     end
     return parsed_presets
   end
 
   def self.get_preset_code(preset_id)
-    resp = RallyTools.make_api_request("/presets/#{preset_id}/providerData")
+    resp = RallyTools.make_api_request("/presets/#{preset_id}/providerData", suppress: true)
   end
 
   def self.get_next_page(response)
@@ -142,13 +160,13 @@ class RallyTools
     end
   end
 
-  def self.download_all_presets()
+  def self.download_all_presets(suppress: false)
     presets = {}
     presets_path = '/presets'
-    resp = RallyTools.make_api_request(presets_path)
+    resp = RallyTools.make_api_request(presets_path, suppress: suppress)
     while RallyTools.get_next_page(resp) do
       presets.merge!(RallyTools.parse_presets_response(resp))
-      resp = RallyTools.make_api_request(nil, path_override: RallyTools.get_next_page(resp), one_line: true)
+      resp = RallyTools.make_api_request(nil, path_override: RallyTools.get_next_page(resp), one_line: true, suppress: suppress)
     end
     return presets
   end
@@ -156,20 +174,66 @@ class RallyTools
   def self.parse_preset_from_file(file_path)
     file_name = File::basename(file_path)
     name = /(.*).py/.match(file_name)[1]
-    parsed_presets = {}
-    parsed_presets[name.to_sym] = {code: File.read(file_path), name: name}
+    parsed_preset = {}
+    parsed_preset[name] = {code: File.read(file_path), name: name}
+    return parsed_preset
   end
 
   def self.load_all_presets_in_folder(path)
     preset_files = {}
-    Dir.glob("#{path}/**/*.py") do |file|
+    path = "#{path}/**/*.py"
+    puts path
+    Dir.glob(path) do |file|
       preset_files.merge!(RallyTools.parse_preset_from_file(file)) if File.file?(file)
     end
     return preset_files
   end
 
-  def self.compare_preset_lists(one, two)
-    difference = one.to_a - two.to_a
+  def self.difference_of_preset_lists(one, two)
+    difference = one.dup.delete_if do |k, v|
+      !two.has_key?(k)
+    end
+  end
+
+  def self.presets_in_both_lists(one, two)
+    difference = one.dup.delete_if do |k, v|
+      !two.has_key?(k)
+    end
+  end
+
+  def self.compare_preset_code_for_differences(one, two, keys_to_compare)
+    presets_with_code_difference = keys_to_compare.map do |preset_name|
+      puts "Does preset named #{preset_name} have the same code?"
+      difference = one[preset_name][:code] == (two[preset_name][:code])
+      {:name => preset_name}.merge!(one[preset_name]) if difference
+    end
+    presets_with_code_difference.compact
+  end
+
+  def self.new_resource_payload(type: nil, attributes: {})
+    payload = {
+      data: {
+        type: type,
+        attributes: attributes
+      }
+    }
+  end
+
+  def self.update_preset_in_rally(preset_path)
+    # open the preset file
+    # parse the name from the comment String
+    # search for it in rally
+    # take the first result
+    # get the id from the first result
+    # patch request it up to rally
+  end
+
+  def self.rapid_preset_dev(preset_path)
+    # open the preset
+    # parse the name, the rule and the test content
+    # call update preset in rally
+    # create a /workflows payload
+    # execute it against the filename
   end
 
 end

@@ -42,8 +42,8 @@ class RallyTools
     body = nil
     begin
       body = JSON[resp.body]
-    rescue
-      JSON::ParserError body = resp.body.to_s
+    rescue JSON::ParserError
+      body = resp.body.to_s
     end
     return body
   end

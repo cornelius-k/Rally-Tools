@@ -1,23 +1,37 @@
 # The beginning of a set of tools to make working with Rally easier.
+require './errors.rb'
+require './preset.rb'
 require 'http'
 require 'json'
 require 'pry'
 require 'yaml'
+
 class HTTPRequestError < StandardError
   attr_reader :msg
-
   @msg = nil
   def initialize(resp)
     @msg = "Bad response from HTTP Request, status code #{resp.code}, body: #{resp.body}"
   end
 end
 
+class InvalidPresetException < StandardError
+  attr_reader :object
+
+  def initialize(object)
+    @object = object
+  end
+end
+
+class RallyMatchNotFoundError < StandardError
+end
+
+
 class RallyTools
   @env_name = "UAT"
   @rally_api_key = ENV["rally_api_key_#{@env_name}"]
   @rally_api = ENV["rally_api_url_#{@env_name}"]
 
-  def self.make_api_request(path, path_override: nil, payload: nil, one_line: false, suppress: false, patch: false)
+  def self.make_api_request(path, path_override: nil, payload: nil, one_line: false, suppress: false, patch: false, put: false)
     path = path_override || @rally_api + path
     endchar = one_line ? "\t" : "\n"
 
@@ -26,6 +40,8 @@ class RallyTools
     if payload && @env_name != "PROD" # saftey -- don't modify Production
       if patch
         resp = HTTP.accept(:json).auth("Bearer " + @rally_api_key).patch(path, json: payload)
+      elsif put
+        resp = HTTP.accept(:json).auth("Bearer " + @rally_api_key).put(path, body: payload)
       else
         resp = HTTP.accept(:json).auth("Bearer " + @rally_api_key).post(path, json: payload)
       end
@@ -34,7 +50,7 @@ class RallyTools
     end
 
     # check for a successful response
-    if ![200, 201].include?(resp.code)
+    if ![200, 201, 204].include?(resp.code)
       raise HTTPRequestError.new(resp)
     end
 
@@ -52,7 +68,27 @@ class RallyTools
     movie_search_path = "/movies?filter=nameContains=#{movie_name}"
     body = self.make_api_request(movie_search_path)
     id = nil
-    begin id = body['data'][0]['id'] rescue NoMethodError end
+    begin
+      id = body['data'][0]['id']
+    rescue NoMethodError
+       raise RallyMatchNotFoundError.new
+    end
+    return id
+  end
+
+  def self.get_rally_id_for_preset_name(preset_name)
+    preset_search_path = "/presets?filter=name=#{URI::escape(preset_name)}"
+    begin
+      body = self.make_api_request(preset_search_path)
+    rescue HTTPRequestError => e
+        p e.msg
+    end
+    id = nil
+    begin
+      id = body['data'][0]['id']
+    rescue NoMethodError
+       raise RallyMatchNotFoundError.new
+     end
     return id
   end
 
@@ -175,7 +211,11 @@ class RallyTools
     file_name = File::basename(file_path)
     name = /(.*).py/.match(file_name)[1]
     parsed_preset = {}
-    parsed_preset[name] = {code: File.read(file_path), name: name}
+    code = IO.read(file_name)
+    #File.open('path', 'wb') do |fo|
+    #    code = fo.read(text)
+    #end
+    parsed_preset[name] = {code: code, name: name}
     return parsed_preset
   end
 
@@ -191,7 +231,7 @@ class RallyTools
 
   def self.difference_of_preset_lists(one, two)
     difference = one.dup.delete_if do |k, v|
-      !two.has_key?(k)
+      two.has_key?(k)
     end
   end
 
@@ -204,28 +244,77 @@ class RallyTools
   def self.compare_preset_code_for_differences(one, two, keys_to_compare)
     presets_with_code_difference = keys_to_compare.map do |preset_name|
       puts "Does preset named #{preset_name} have the same code?"
-      difference = one[preset_name][:code] == (two[preset_name][:code])
-      {:name => preset_name}.merge!(one[preset_name]) if difference
+      difference = one[preset_name][:code] != two[preset_name][:code]
+      {:name => preset_name} if difference
     end
     presets_with_code_difference.compact
   end
 
-  def self.new_resource_payload(type: nil, attributes: {})
+  def self.new_resource_payload(type: nil, attributes: {}, relationships: {})
     payload = {
       data: {
         type: type,
-        attributes: attributes
+        attributes: attributes,
+        relationships: relationships
       }
     }
   end
 
-  def self.update_preset_in_rally(preset_path)
-    # open the preset file
-    # parse the name from the comment String
-    # search for it in rally
-    # take the first result
-    # get the id from the first result
-    # patch request it up to rally
+  # open a file on the file system, raises exception for missing file
+  def self.open_file(file_path)
+    raise Errors::FileNotFoundException.new("File not Found") if !File.exist?(file_path)
+    file_contents = File.open(file_path, 'rb') { |f| f.read }
+  end
+
+  def self.update_preset_in_rally(id, preset)
+    patch_update_path = "/presets/#{id}/providerData"
+    begin
+      response = self.make_api_request(patch_update_path, payload: preset.code , put: true)
+    rescue HTTPRequestError => e
+      p e.msg
+    end
+  end
+
+  def self.create_preset_in_rally(preset)
+    payload = {
+      data: {
+        type: 'presets',
+        attributes: {
+          name: preset.name
+        },
+        relationships: {
+          providerType: {
+            data: {
+              id: RallyTools.find_evaluate_provider_type(),
+              type: "providerTypes"
+            },
+          }
+        }
+      }
+    }
+    path = '/presets'
+    begin
+      response = self.make_api_request(path, payload: payload)
+      return response
+    rescue HTTPRequestError => e
+      p e.msg
+    end
+  end
+
+  def self.find_evaluate_provider_type()
+    path = "/providerTypes"
+    response = self.make_api_request(path)
+    id = nil
+    response["data"].each do |providerType|
+      if providerType["attributes"]["name"] == "SdviEvaluate"
+        id = providerType["id"]
+      end
+    end
+    if id.nil?
+      raise RallyMatchNotFoundError.new
+    else
+      return id
+    end
   end
 
   def self.rapid_preset_dev(preset_path)

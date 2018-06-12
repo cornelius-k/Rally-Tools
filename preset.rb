@@ -1,4 +1,4 @@
-require './errors.rb'
+require_relative './errors.rb'
 
 class Preset
   attr_accessor :name, :code

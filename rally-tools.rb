@@ -1,6 +1,6 @@
 # The beginning of a set of tools to make working with Rally easier.
-require './errors.rb'
-require './preset.rb'
+require_relative './errors.rb'
+require_relative './preset.rb'
 require 'http'
 require 'json'
 require 'pry'

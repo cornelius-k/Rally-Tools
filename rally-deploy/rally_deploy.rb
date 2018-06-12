@@ -77,7 +77,7 @@ module RallyDeploy
             begin
               preset_path =  File.join(rally_repo_path, file_path)
               preset = Preset.new(preset_path)
-              presets.append(preset)
+              presets << preset
             rescue Errors::FileNotFoundException
               p "File Not Found Exception Occured"
               # do nothing

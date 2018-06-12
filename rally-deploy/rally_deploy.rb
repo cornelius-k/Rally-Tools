@@ -60,7 +60,7 @@ module RallyDeploy
   end
 
   def self.determine_commits_to_deploy(deployment_log, commits)
-    last_deployed_hash = deployment_log.last["last_deployed_hash"]
+    last_deployed_hash = deployment_log.get_last_deployment["last_deployed_hash"]
     last_deployed_index = commits.find_index { |commit|  commit[:hash] == last_deployed_hash }
     commits_to_deploy = commits[last_deployed_index..-1]
   end

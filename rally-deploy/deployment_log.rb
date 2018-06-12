@@ -21,6 +21,10 @@ class RallyDeploymentLog
     @log.append(new_log_entry)
   end
 
+  def get_last_deployment()
+    @log.last
+  end
+
 
   # serialize to json for saving to output file
   def tojson()

@@ -1,7 +1,7 @@
 require './rally_deploy.rb'
 require './deployment.rb'
 require './deployment_log.rb'
-
+require 'pry'
 
 #######################
 # Get the path to the repository from environment variable

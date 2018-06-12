@@ -23,7 +23,7 @@ deployment_log = RallyDeploy::get_deployment_log()
 # Determine which commits are new and contain changes that need to be deployed
 commits_deploying = RallyDeploy::determine_commits_to_deploy(deployment_log, commits)
 
-if commits_to_deploy
+if commits_deploying
   # load the presets for those commits
   presets_to_deploy = RallyDeploy::load_presets_for_commits(commits_deploying, rally_repo_path)
 

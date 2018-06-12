@@ -72,13 +72,16 @@ module RallyDeploy
     commits.each do |commit|
       unless commit[:files].nil?
         commit[:files].each do |file_path|
-          begin
-            preset_path =  File.join(rally_repo_path, file_path)
-            preset = Preset.new(preset_path)
-            presets.append(preset)
-          rescue Errors::FileNotFoundException
-            p "File Not Found Exception Occured"
-            # do nothing
+          # only load python presets
+          if file_path[-3, 3] == '.py'
+            begin
+              preset_path =  File.join(rally_repo_path, file_path)
+              preset = Preset.new(preset_path)
+              presets.append(preset)
+            rescue Errors::FileNotFoundException
+              p "File Not Found Exception Occured"
+              # do nothing
+            end
           end
         end
       end

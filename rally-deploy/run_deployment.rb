@@ -1,6 +1,6 @@
-require './rally_deploy.rb'
-require './deployment.rb'
-require './deployment_log.rb'
+require_relative './rally_deploy.rb'
+require_relative './deployment.rb'
+require_relative './deployment_log.rb'
 require 'pry'
 
 #######################
@@ -26,7 +26,6 @@ commits_deploying = RallyDeploy::determine_commits_to_deploy(deployment_log, com
 if commits_deploying
   # load the presets for those commits
   presets_to_deploy = RallyDeploy::load_presets_for_commits(commits_deploying, rally_repo_path)
-
   # Create a deployment.  This prepares and manages the deployment process.
   deployment = Deployment.new(presets_to_deploy)
 

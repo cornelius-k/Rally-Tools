@@ -1,7 +1,7 @@
 require 'optparse'
-require '../preset.rb'
-require './deployment.rb'
-require './rally_deploy.rb'
+require_relative '../preset.rb'
+require_relative './deployment.rb'
+require_relative './rally_deploy.rb'
 # This will hold the options we parse
 options = {}
 

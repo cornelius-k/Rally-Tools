@@ -1,11 +1,11 @@
 #
-require '../rally-tools.rb'
-require '../errors.rb'
+require_relative '../rally-tools.rb'
+require_relative '../errors.rb'
 require 'json'
 require 'date'
 require 'pry'
-require './deployment.rb'
-require './deployment_log.rb'
+require_relative './deployment.rb'
+require_relative './deployment_log.rb'
 
 # deployment_log = File.new(@@deployment_log_path, "w")
 # File.write(deployment_log, data)
@@ -29,8 +29,7 @@ module RallyDeploy
         date = date_matches ? DateTime.parse(date_matches[1]) : nil
 
         # parse the files included
-        files_matches = /(supply\ chain.*)/.match(commit_text)
-        files = files_matches ? files_matches.captures : nil
+        files = commit_text.scan(/supply\ chain.*/)
 
         # add to commits
         commits.push({ hash: commit_hash, date: date, files: files}) unless commit_hash.nil? || date.nil?

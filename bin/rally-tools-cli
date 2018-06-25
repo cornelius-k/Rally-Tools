@@ -1,0 +1,57 @@
+#!/usr/bin/env ruby
+# Rally Tools Command Line Interface
+
+require 'optparse'
+require 'rally-tools'
+require 'json'
+require_relative '../lib/rally-deploy/rally_deploy.rb'
+
+# set up options parsing
+options = {}
+global = OptionParser.new do |opts|
+
+  opts.on("", "", "Prints Help") do
+    puts opts
+  end
+
+  opts.banner = "Usage: rally-tools-cli [options]"
+
+  opts.on("-h", "--help", "Prints this help message") do
+    puts opts
+    puts subcommands
+  end
+
+  ## Display Rally Tools Configuration
+  opts.on("-c", "--config", "Display currently configured rally environment name.") do
+    puts RallyTools::get_config()
+  end
+
+end
+
+# Individual tool options parsing
+subcommands = {
+
+  # simple deployment
+  'deploy' => OptionParser.new do |opts|
+
+    # deploy an individual file
+    opts.on("-f", "--file NAME", "The path to the of the preset to deploy") do |file_path|
+      result = RallyDeploy::simple_deploy(file_path)
+      p JSON[result]
+    end
+
+   end,
+
+   # git deployment
+   'git-deploy' => OptionParser.new do |opts|
+     # ...
+   end
+ }
+
+# parse ARGV
+global.order!
+
+# parse subcommands
+if ARGV.size > 0
+  subcommands[ARGV.shift].order!
+end

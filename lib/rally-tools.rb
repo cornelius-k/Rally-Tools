@@ -267,7 +267,8 @@ class RallyTools
 
   # open a file on the file system, raises exception for missing file
   def self.open_file(file_path)
-    raise Errors::FileNotFoundException.new("File not Found") if !File.exist?(file_path)
+    p file_path
+    raise Errors::FileNotFoundException.new(file_path) if !File.exist?(file_path)
     file_contents = File.open(file_path, 'rb') { |f| f.read }
   end
 

@@ -10,10 +10,6 @@ require_relative '../lib/rally-deploy/rally_deploy.rb'
 options = {}
 global = OptionParser.new do |opts|
 
-  opts.on("", "", "Prints Help") do
-    puts opts
-  end
-
   opts.banner = "Usage: rally-tools-cli [options]"
 
   opts.on("-h", "--help", "Prints this help message") do
@@ -28,7 +24,7 @@ global = OptionParser.new do |opts|
 
 end
 
-# Individual tool options parsing
+# nested options for individual tools
 subcommands = {
 
   # simple deployment
@@ -43,8 +39,13 @@ subcommands = {
    end,
 
    # git deployment
-   'git-deploy' => OptionParser.new do |opts|
-     # ...
+   'git-deploy' => OptionParser.new do |git_opts|
+
+    # run git-deployment without a prompt for machine execution
+     git_opts.on("-f", "Run a deployment without any prompt.") do
+       puts "Executing Rally Tools git-deployment script..."
+       load '../lib/rally-deploy/run_deployment.rb'
+     end
    end
  }
 

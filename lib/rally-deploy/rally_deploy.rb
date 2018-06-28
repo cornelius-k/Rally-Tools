@@ -12,7 +12,7 @@ require_relative './deployment_log.rb'
 
 ## A group of functions for identifying and deploying changes made to a Rally repository
 module RallyDeploy
-  @@deployment_log_path = 'rally_deploy_log.json'
+  @@deployment_log_path = File.join(File.dirname(__FILE__), 'rally_deploy_log.json')
 
   # parse commit information from the output of a git log
   def self.parse_log(git_log)
@@ -42,26 +42,36 @@ module RallyDeploy
 
   def self.get_deployment_log()
     begin
-      deployment_log_contents = RallyTools::open_file(@@deployment_log_path)
-      log_contents_as_hash = JSON[deployment_log_contents]
-      return RallyDeploymentLog.new(log_contents_as_hash)
-    rescue Errors::FileNotFoundException
-      return RallyDeploymentLog.new(nil)
+      p "Deployment log path is" + @@deployment_log_path
+      deployment_log_contents_str = RallyTools::open_file(@@deployment_log_path)
+      log_data = nil
+      log_data = JSON[deployment_log_contents_str]
+      return RallyDeploymentLog.new(log_data)
+    rescue JSON::ParserError, Errors::FileNotFoundException => e
+        raise Errors::InvalidLogFileException
     end
 
-    return deployment_log
   end
 
   def self.update_deploy_log(deployment_log)
     p deployment_log.tojson
-    #File.open(@@deployment_log_path, 'w') { |file| file.write(deployment_log.to_json) }
+    File.open(@@deployment_log_path, 'w') { |file| file.write(deployment_log.tojson) }
 
   end
 
   def self.determine_commits_to_deploy(deployment_log, commits)
-    last_deployed_hash = deployment_log.get_last_deployment["last_deployed_hash"]
+    last_deployed_hash = deployment_log.last_deployed_hash
+    p deployment_log.tojson
+    p last_deployed_hash
     last_deployed_index = commits.find_index { |commit|  commit[:hash] == last_deployed_hash }
+    if !last_deployed_index
+      raise Errors::RallyGitDeploymentError.new("Error determining commits to deploy.
+         The last deployed hash from the log: #{last_deployed_hash}, can not be found in the list of commits.
+         Check that the git repo is on the correct branch for deployment.")
+    end
+    p last_deployed_index
     commits_to_deploy = commits[last_deployed_index..-1]
+    return commits_to_deploy
   end
 
   def self.load_presets_for_commits(commits, rally_repo_path)

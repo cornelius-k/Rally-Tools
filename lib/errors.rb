@@ -19,5 +19,29 @@ module Errors
   end
 
   class FileNotFoundException < StandardError
+
+    @path
+    def initiailze(path)
+      @path = path
+    end
+
+    def to_str()
+      return "File not found for path:" + @path
+    end
+
+  end
+
+  class RallyGitDeploymentError < StandardError
+    @message
+    def initialize(message)
+      @message = message
+    end
+
+    def to_str()
+      return @message
+    end
+  end
+
+  class InvalidLogFileException < StandardError
   end
 end
